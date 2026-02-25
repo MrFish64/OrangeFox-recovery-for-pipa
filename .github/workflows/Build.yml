@@ -24,12 +24,10 @@ jobs:
       run: |
         O_REPO=$(echo "aHR0cHM6Ly9naXRsYWIuY29tL09yYW5nZUZveC9zeW5jLmdpdA==" | base64 -d)
         T_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1BpcGFEQi9PRlJQLWRldmljZV94aWFvbWlfcGlwYQ==" | base64 -d)
-        O_API=$(echo "aHR0cHM6Ly9naXRsYWIuY29tL2FwaS92NC9wcm9qZWN0cy9PcmFuZ2VGb3glMkZzeW5jL3JlcG9zaXRvcnkvYnJhbmNoZXM=" | base64 -d)
-        T_API=$(echo "aHR0cHM6Ly9hcGkuZ2l0aHViLmNvbS9yZXBvcy9QaXBhREIvT0ZSUC1kZXZpY2VfeGlhb21pX3BpcGEvYnJhbmNoZXM=" | base64 -d)
-        O_BR=$(curl -s "$O_API" | jq -r 'sort_by(.name) | reverse | .[0].name')
-        T_BR=$(curl -s "$T_API" | jq -r 'sort_by(.name) | last | .name')        
-        echo "O_BR=$O_BR" >> $GITHUB_ENV
-        echo "T_BR=$T_BR" >> $GITHUB_ENV
+        
+        # Фиксируем ветки для стабильной сборки pipa
+        echo "O_BR=12.1" >> $GITHUB_ENV
+        echo "T_BR=fox_12.1-a16" >> $GITHUB_ENV
         echo "O_REPO=$O_REPO" >> $GITHUB_ENV
         echo "T_URL=$T_URL" >> $GITHUB_ENV
 
@@ -76,20 +74,18 @@ jobs:
         files: |
           ${{ github.workspace }}/OrangeFox/fox_${{ env.O_BR }}/out/target/product/pipa/OrangeFox*.zip
           ${{ github.workspace }}/OrangeFox/fox_${{ env.O_BR }}/out/target/product/pipa/boot.img
-        name: OrangeFox Recovery pipa [${{ env.D }}]
+        name: OrangeFox Recovery pipa Build ${{ env.D }}
         tag_name: ${{ env.D }}
         body: |
-          ## 🦊 OrangeFox Recovery Official-Ready Build
-          **Device:** Xiaomi Pad 6 (`pipa`)
-          **Build Date:** ${{ env.D }}
+          ## 🦊 OrangeFox Recovery Build for pipa
+          **Device:** Xiaomi Pad 6
+          **Date:** ${{ env.D }}
           **Manifest:** ${{ env.O_BR }}
-          **Maintainer Tree Branch:** `${{ env.T_BR }}`
+          **Tree Branch:** `${{ env.T_BR }}`
           
-          ### Installation Guide
-          1. Boot the image via Fastboot: `fastboot boot boot.img`
-          2. Navigate to **Menu** -> **Settings** -> **Advanced**.
-          3. Select **Flash current OrangeFox**.
-          4. Recovery is now permanently installed.
+          **Installation:**
+          1. `fastboot boot boot.img`
+          2. Menu -> Settings -> Advanced -> Flash current OrangeFox.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
