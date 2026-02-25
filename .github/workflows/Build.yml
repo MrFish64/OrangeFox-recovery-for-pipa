@@ -10,40 +10,38 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Checkout Repository
+    - name: Initialize Repository
       uses: actions/checkout@v4
 
-    - name: Initialize Environment
+    - name: Configure Build Environment
       run: |
         export S_URL=$(echo "aHR0cHM6Ly9naXRsYWIuY29tL09yYW5nZUZveC9taXNjL3NjcmlwdHMuZ2l0" | base64 -d)
-        sudo apt update && sudo apt install aria2 jq ccache -y
+        sudo apt update && sudo apt install aria2 jq ccache zram-tools -y
         git clone $S_URL -b master
         cd scripts && sudo bash setup/android_build_env.sh
 
-    - name: Setup Compiler Cache
+    - name: Compiler Cache Optimization
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         max-size: "5G"
         key: ofox-pipa-a16
 
-    - name: Resolve Project Components
+    - name: Resolve Infrastructure Components
       run: |
         O_REPO=$(echo "aHR0cHM6Ly9naXRsYWIuY29tL09yYW5nZUZveC9zeW5jLmdpdA==" | base64 -d)
         T_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1BpcGFEQi9PRlJQLWRldmljZV94aWFvbWlfcGlwYQ==" | base64 -d)
         V_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL01hdHJpeHgtRGV2aWNlcy92ZW5kb3JfeGlhb21pX3BpcGE=" | base64 -d)
         H_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL01hdHJpeHgtRGV2aWNlcy9hbmRyb2lkX2hhcmR3YXJlX3hpYW9taQ==" | base64 -d)
-        
         echo "O_BR=12.1" >> $GITHUB_ENV
         echo "T_BR=fox_12.1-a16" >> $GITHUB_ENV
         echo "V_BR=lineage-23.2" >> $GITHUB_ENV
         echo "H_BR=lineage-23.2" >> $GITHUB_ENV
-        
         echo "O_REPO=$O_REPO" >> $GITHUB_ENV
         echo "T_URL=$T_URL" >> $GITHUB_ENV
         echo "V_URL=$V_URL" >> $GITHUB_ENV
         echo "H_URL=$H_URL" >> $GITHUB_ENV
 
-    - name: Synchronize Manifest
+    - name: Synchronize Manifest Data
       run: |
         mkdir -p ${GITHUB_WORKSPACE}/OrangeFox
         cd ${GITHUB_WORKSPACE}/OrangeFox
@@ -53,35 +51,31 @@ jobs:
         cd sync
         ./orangefox_sync.sh --branch ${{ env.O_BR }} --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ env.O_BR }}
 
-    - name: Apply Integration Patches
+    - name: Integrate Advanced Modules
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ env.O_BR }}
-        # CAF for A13/14+ Compatibility
         sed -i 's/lineage-19.1-caf/lineage-21.0-caf/g' .repo/manifests/twrp-default.xml
         sed -i '/android_bootable_recovery/d' .repo/manifests/twrp-default.xml
         mv bootable/recovery bootable/recovery-ofrp
-        repo sync -j$(nproc)
+        repo sync -j$(nproc) --force-sync
         mv bootable/recovery-ofrp bootable/recovery
-        
-        # Clone A16 Components
         git clone ${{ env.V_URL }} -b ${{ env.V_BR }} vendor/xiaomi/pipa
         git clone ${{ env.H_URL }} -b ${{ env.H_BR }} hardware/xiaomi
-        
-        # FIX: Strip Android 15/16 'select' syntax for legacy Soong
         find hardware/xiaomi vendor/xiaomi/pipa -name "Android.bp" -exec sed -i '/select(soong_config_variable/,/)/d' {} +
-        
+        find hardware/xiaomi vendor/xiaomi/pipa -name "Android.bp" -exec sed -i 's/@[^ ]*//g' {} +
+        find hardware/xiaomi vendor/xiaomi/pipa -name "Android.bp" -exec sed -i '/VINTF_INTERFACE_STUB/d' {} +
         cd bionic/
         P_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL2Fkb250b28vT3JhbmdlRm94LWFuZHJvaWRfcGxhdGZvcm1fYmlvbmljL2NvbW1pdC84NWIxYTcxMDAwODMwMDY5MjczNzZmMzBiYjhhNjc4ODVjNmRkNzFmLnBhdGNo" | base64 -d)
         wget "$P_URL" -O bionic.patch || true
         git apply bionic.patch || true
 
-    - name: Import Device Tree
+    - name: Import Device Architecture
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ env.O_BR }}
         git clone ${{ env.T_URL }} -b ${{ env.T_BR }} ./device/xiaomi/pipa
         echo "D=$(date +%Y%m%d)" >> $GITHUB_ENV
 
-    - name: Production Compilation
+    - name: Production Image Synthesis
       run: |
         cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ env.O_BR }}
         export ALLOW_MISSING_DEPENDENCIES=true
@@ -89,31 +83,36 @@ jobs:
         export LC_ALL=C
         export USE_CCACHE=1
         export CCACHE_EXEC=/usr/bin/ccache
-        
         set +e
         source build/envsetup.sh || true
         lunch twrp_pipa-eng || true
         set -e
-        
         mka adbd bootimage
 
-    - name: Publish Production Assets
+    - name: Deploy Production Assets
       uses: softprops/action-gh-release@v1
       with:
         files: |
           ${{ github.workspace }}/OrangeFox/fox_${{ env.O_BR }}/out/target/product/pipa/OrangeFox*.zip
           ${{ github.workspace }}/OrangeFox/fox_${{ env.O_BR }}/out/target/product/pipa/boot.img
-        name: OrangeFox for pipa [A16 Base]
+        name: OrangeFox Stable pipa [${{ env.D }}]
         tag_name: ${{ env.D }}
         body: |
-          ## 🦊 OrangeFox Recovery Project Release
-          **Target:** Xiaomi Pad 6 (`pipa`)
-          **Base:** Android 16 (Lineage 23.2 Components)
-          ---
-          **Notes:**
-          - Backward compatibility patches applied for `Android.bp`.
-          - Synced with latest OFRP 12.1 manifest.
-          - Built using automated production-grade CI.
+          ## 🦊 OrangeFox Recovery Stable
+          - **Device:** Xiaomi Pad 6 (`pipa`)
+          - **Base Version:** Android 16 components
+          
+          ### 🛠 Installation Guide
+          1. Download `boot.img` and `OrangeFox-pipa-*.zip`.
+          2. Enter **Fastboot Mode** on your device.
+          3. Temporary boot: `fastboot boot boot.img`.
+          4. In Recovery: Go to **Menu** -> **Settings** -> **Advanced** -> **Flash current OrangeFox**.
+          5. After reboot, the recovery is permanently installed.
+          
+          ### 🤝 Credits
+          - OrangeFox Recovery Team
+          - PipaDB (Device Tree)
+          - Matrixx-Devices (Vendor/Hardware)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
