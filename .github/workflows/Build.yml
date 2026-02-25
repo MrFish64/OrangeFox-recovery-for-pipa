@@ -10,8 +10,15 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Initialize Repository
+    - name: Checkout Repository
       uses: actions/checkout@v4
+
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup /var/lib/mongodb
+        sudo docker image prune -a -f
+        sudo apt clean
+        df -h
 
     - name: Configure Build Environment
       run: |
@@ -26,7 +33,7 @@ jobs:
         max-size: "5G"
         key: ofox-pipa-a16
 
-    - name: Resolve Infrastructure Components
+    - name: Resolve Project Components
       run: |
         O_REPO=$(echo "aHR0cHM6Ly9naXRsYWIuY29tL09yYW5nZUZveC9zeW5jLmdpdA==" | base64 -d)
         T_URL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1BpcGFEQi9PRlJQLWRldmljZV94aWFvbWlfcGlwYQ==" | base64 -d)
@@ -98,7 +105,7 @@ jobs:
         name: OrangeFox Stable pipa [${{ env.D }}]
         tag_name: ${{ env.D }}
         body: |
-          ## 🦊 OrangeFox Recovery Stable
+          ## 🦊 OrangeFox Recovery Stable Release
           - **Device:** Xiaomi Pad 6 (`pipa`)
           - **Base Version:** Android 16 components
           
@@ -108,11 +115,6 @@ jobs:
           3. Temporary boot: `fastboot boot boot.img`.
           4. In Recovery: Go to **Menu** -> **Settings** -> **Advanced** -> **Flash current OrangeFox**.
           5. After reboot, the recovery is permanently installed.
-          
-          ### 🤝 Credits
-          - OrangeFox Recovery Team
-          - PipaDB (Device Tree)
-          - Matrixx-Devices (Vendor/Hardware)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
